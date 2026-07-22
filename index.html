@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bancaservicios · Panel del Director Regional</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  /* ============ ESTILOS ============ */
+  :root{
+    --azul:#1f3a5f; --verde:#1e8e5a; --rojo:#c0392b; --gris:#f4f6f8;
+    --texto:#2c3e50; --borde:#e1e6eb;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{font-family:'Segoe UI',system-ui,sans-serif; background:var(--gris); color:var(--texto); padding:20px;}
+  header{margin-bottom:20px;}
+  h1{font-size:1.5rem; color:var(--azul);}
+  .subtitulo{color:#6b7a8d; font-size:.9rem; margin-top:4px;}
+  .kpis{display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px; margin-bottom:24px;}
+  .kpi{background:#fff; border:1px solid var(--borde); border-radius:12px; padding:20px; box-shadow:0 1px 3px rgba(0,0,0,.06);}
+  .kpi .etiqueta{font-size:.85rem; color:#6b7a8d; text-transform:uppercase; letter-spacing:.5px;}
+  .kpi .valor{font-size:2rem; font-weight:700; color:var(--azul); margin-top:6px;}
+  .kpi .nota{font-size:.78rem; color:#8a97a5; margin-top:6px;}
+  .panel{background:#fff; border:1px solid var(--borde); border-radius:12px; padding:20px; margin-bottom:24px; box-shadow:0 1px 3px rgba(0,0,0,.06);}
+  .panel h2{font-size:1.05rem; color:var(--azul); margin-bottom:4px;}
+  .panel .ayuda{font-size:.8rem; color:#8a97a5; margin-bottom:14px;}
+  table{width:100%; border-collapse:collapse; font-size:.9rem;}
+  th{text-align:left; padding:10px 8px; border-bottom:2px solid var(--azul); color:var(--azul); font-size:.8rem; text-transform:uppercase;}
+  td{padding:9px 8px; border-bottom:1px solid var(--borde);}
+  tbody tr:nth-child(even){background:#fafbfc;}
+  tbody tr:hover{background:#eef3f8;}
+  .num{text-align:right; font-variant-numeric:tabular-nums;}
+  .pill{display:inline-block; padding:2px 10px; border-radius:12px; font-weight:600; font-size:.82rem;}
+  .bien{background:#e3f5ec; color:var(--verde);}
+  .alerta{background:#fdeceb; color:var(--rojo);}
+  .neutro{background:#eef1f4; color:#5a6a7a;}
+  .grafico-caja{position:relative; height:340px;}
+  footer{font-size:.75rem; color:#9aa7b3; text-align:center; margin-top:10px;}
+  @media (max-width:600px){ .kpi .valor{font-size:1.5rem;} th,td{font-size:.78rem; padding:7px 5px;} }
+</style>
+</head>
+<body>
+<header>
+  <h1>Panel del Director Regional — Bancaservicios</h1>
+  <p class="subtitulo">Cartera vigente y efectividad comercial por asesor · Datos a julio 2026</p>
+</header>
+
+<!-- KPIs -->
+<section class="kpis">
+  <div class="kpi"><div class="etiqueta">Pólizas vigentes</div><div class="valor" id="kpiPolizas">—</div><div class="nota">Total de pólizas activas hoy</div></div>
+  <div class="kpi"><div class="etiqueta">Prima mensual vigente</div><div class="valor" id="kpiPrima">—</div><div class="nota">Ingreso mensual de la cartera activa</div></div>
+  <div class="kpi"><div class="etiqueta">Efectividad promedio</div><div class="valor" id="kpiTasa">—</div><div class="nota">De cada 100 gestiones, cuántas logran su objetivo</div></div>
+</section>
+
+<!-- Tabla top 10 -->
+<section class="panel">
+  <h2>Top 10 asesores por prima vigente</h2>
+  <p class="ayuda">Verde = efectividad sobre el promedio del equipo · Rojo = efectividad bajo 40% (requiere acompañamiento)</p>
+  <div style="overflow-x:auto;">
+  <table>
+    <thead><tr><th>#</th><th>Asesor</th><th>Regional</th><th class="num">Pólizas vigentes</th><th class="num">Prima mensual</th><th class="num">Efectividad</th></tr></thead>
+    <tbody id="cuerpoTabla"></tbody>
+  </table>
+  </div>
+</section>
+
+<!-- Gráfico -->
+<section class="panel">
+  <h2>Prima mensual vigente por regional</h2>
+  <p class="ayuda">Suma de la prima de todas las pólizas activas de cada zona. Barras más altas = zonas que más aportan al ingreso.</p>
+  <div class="grafico-caja"><canvas id="graficoRegional"></canvas></div>
+</section>
+
+<footer>Fuente: polizas.csv y gestiones.csv · Generado automáticamente desde Google Colab</footer>
+
+<script>
+/* ============ 1. DATOS (generados por la consulta maestra) ============ */
+const DATOS = [{"asesor": "Asesor_020", "regional": "Valle", "polizas_vigentes": 20, "prima_vigente": 8963000.0, "gestiones_totales": 37, "tasa_efectividad": 48.6}, {"asesor": "Asesor_005", "regional": "Bogotá", "polizas_vigentes": 16, "prima_vigente": 8377900.0, "gestiones_totales": 40, "tasa_efectividad": 50.0}, {"asesor": "Asesor_006", "regional": "Bogotá", "polizas_vigentes": 19, "prima_vigente": 7808300.0, "gestiones_totales": 32, "tasa_efectividad": 53.1}, {"asesor": "Asesor_010", "regional": "Antioquia", "polizas_vigentes": 14, "prima_vigente": 7319100.0, "gestiones_totales": 22, "tasa_efectividad": 31.8}, {"asesor": "Asesor_025", "regional": "Costa", "polizas_vigentes": 17, "prima_vigente": 7170500.0, "gestiones_totales": 37, "tasa_efectividad": 64.9}, {"asesor": "Asesor_009", "regional": "Antioquia", "polizas_vigentes": 16, "prima_vigente": 7152400.0, "gestiones_totales": 36, "tasa_efectividad": 36.1}, {"asesor": "Asesor_037", "regional": "Santanderes", "polizas_vigentes": 15, "prima_vigente": 7021100.0, "gestiones_totales": 16, "tasa_efectividad": 56.3}, {"asesor": "Asesor_038", "regional": "Santanderes", "polizas_vigentes": 14, "prima_vigente": 6832400.0, "gestiones_totales": 17, "tasa_efectividad": 76.5}, {"asesor": "Asesor_018", "regional": "Valle", "polizas_vigentes": 14, "prima_vigente": 6799400.0, "gestiones_totales": 24, "tasa_efectividad": 54.2}, {"asesor": "Asesor_007", "regional": "Antioquia", "polizas_vigentes": 12, "prima_vigente": 6681900.0, "gestiones_totales": 20, "tasa_efectividad": 25.0}, {"asesor": "Asesor_026", "regional": "Costa", "polizas_vigentes": 15, "prima_vigente": 6548700.0, "gestiones_totales": 15, "tasa_efectividad": 73.3}, {"asesor": "Asesor_024", "regional": "Costa", "polizas_vigentes": 14, "prima_vigente": 6530900.0, "gestiones_totales": 34, "tasa_efectividad": 38.2}, {"asesor": "Asesor_004", "regional": "Bogotá", "polizas_vigentes": 14, "prima_vigente": 6257600.0, "gestiones_totales": 29, "tasa_efectividad": 44.8}, {"asesor": "Asesor_016", "regional": "Valle", "polizas_vigentes": 13, "prima_vigente": 6183900.0, "gestiones_totales": 19, "tasa_efectividad": 36.8}, {"asesor": "Asesor_039", "regional": "Santanderes", "polizas_vigentes": 14, "prima_vigente": 5860200.0, "gestiones_totales": 26, "tasa_efectividad": 38.5}, {"asesor": "Asesor_017", "regional": "Valle", "polizas_vigentes": 13, "prima_vigente": 5814000.0, "gestiones_totales": 32, "tasa_efectividad": 56.3}, {"asesor": "Asesor_031", "regional": "Eje Cafetero", "polizas_vigentes": 14, "prima_vigente": 5731000.0, "gestiones_totales": 20, "tasa_efectividad": 30.0}, {"asesor": "Asesor_030", "regional": "Eje Cafetero", "polizas_vigentes": 14, "prima_vigente": 5543200.0, "gestiones_totales": 33, "tasa_efectividad": 21.2}, {"asesor": "Asesor_027", "regional": "Costa", "polizas_vigentes": 11, "prima_vigente": 5467800.0, "gestiones_totales": 40, "tasa_efectividad": 40.0}, {"asesor": "Asesor_034", "regional": "Eje Cafetero", "polizas_vigentes": 13, "prima_vigente": 4932600.0, "gestiones_totales": 30, "tasa_efectividad": 43.3}, {"asesor": "Asesor_008", "regional": "Antioquia", "polizas_vigentes": 9, "prima_vigente": 4870100.0, "gestiones_totales": 30, "tasa_efectividad": 56.7}, {"asesor": "Asesor_029", "regional": "Eje Cafetero", "polizas_vigentes": 9, "prima_vigente": 4781700.0, "gestiones_totales": 40, "tasa_efectividad": 60.0}, {"asesor": "Asesor_032", "regional": "Eje Cafetero", "polizas_vigentes": 12, "prima_vigente": 4779300.0, "gestiones_totales": 33, "tasa_efectividad": 54.5}, {"asesor": "Asesor_015", "regional": "Valle", "polizas_vigentes": 9, "prima_vigente": 4709200.0, "gestiones_totales": 32, "tasa_efectividad": 31.3}, {"asesor": "Asesor_028", "regional": "Eje Cafetero", "polizas_vigentes": 10, "prima_vigente": 4690700.0, "gestiones_totales": 39, "tasa_efectividad": 46.2}, {"asesor": "Asesor_035", "regional": "Santanderes", "polizas_vigentes": 10, "prima_vigente": 4578500.0, "gestiones_totales": 18, "tasa_efectividad": 55.6}, {"asesor": "Asesor_003", "regional": "Bogotá", "polizas_vigentes": 11, "prima_vigente": 4520700.0, "gestiones_totales": 36, "tasa_efectividad": 66.7}, {"asesor": "Asesor_011", "regional": "Antioquia", "polizas_vigentes": 12, "prima_vigente": 4242500.0, "gestiones_totales": 39, "tasa_efectividad": 61.5}, {"asesor": "Asesor_014", "regional": "Valle", "polizas_vigentes": 8, "prima_vigente": 4231700.0, "gestiones_totales": 30, "tasa_efectividad": 53.3}, {"asesor": "Asesor_001", "regional": "Bogotá", "polizas_vigentes": 10, "prima_vigente": 4094800.0, "gestiones_totales": 28, "tasa_efectividad": 53.6}, {"asesor": "Asesor_022", "regional": "Costa", "polizas_vigentes": 8, "prima_vigente": 3691400.0, "gestiones_totales": 25, "tasa_efectividad": 52.0}, {"asesor": "Asesor_041", "regional": "Santanderes", "polizas_vigentes": 10, "prima_vigente": 3634800.0, "gestiones_totales": 21, "tasa_efectividad": 52.4}, {"asesor": "Asesor_023", "regional": "Costa", "polizas_vigentes": 9, "prima_vigente": 3498200.0, "gestiones_totales": 29, "tasa_efectividad": 69.0}, {"asesor": "Asesor_019", "regional": "Valle", "polizas_vigentes": 11, "prima_vigente": 3468500.0, "gestiones_totales": 36, "tasa_efectividad": 58.3}, {"asesor": "Asesor_012", "regional": "Antioquia", "polizas_vigentes": 9, "prima_vigente": 3340100.0, "gestiones_totales": 24, "tasa_efectividad": 50.0}, {"asesor": "Asesor_013", "regional": "Valle", "polizas_vigentes": 10, "prima_vigente": 3061600.0, "gestiones_totales": 18, "tasa_efectividad": 44.4}, {"asesor": "Asesor_021", "regional": "Costa", "polizas_vigentes": 8, "prima_vigente": 2847400.0, "gestiones_totales": 30, "tasa_efectividad": 26.7}, {"asesor": "Asesor_040", "regional": "Santanderes", "polizas_vigentes": 7, "prima_vigente": 2759400.0, "gestiones_totales": 38, "tasa_efectividad": 50.0}, {"asesor": "Asesor_002", "regional": "Bogotá", "polizas_vigentes": 7, "prima_vigente": 2723900.0, "gestiones_totales": 32, "tasa_efectividad": 46.9}, {"asesor": "Asesor_033", "regional": "Eje Cafetero", "polizas_vigentes": 6, "prima_vigente": 2282100.0, "gestiones_totales": 28, "tasa_efectividad": 57.1}, {"asesor": "Asesor_036", "regional": "Santanderes", "polizas_vigentes": 7, "prima_vigente": 1899200.0, "gestiones_totales": 21, "tasa_efectividad": 38.1}];
+
+/* ============ 2. LÓGICA DE DATOS ============ */
+const fmtPesos = n => '$' + Math.round(n).toLocaleString('es-CO');
+const fmtPct   = n => n.toFixed(1).replace('.', ',') + '%';
+
+function calcularKPIs(filas){
+  const polizas = filas.reduce((a,f) => a + f.polizas_vigentes, 0);
+  const prima   = filas.reduce((a,f) => a + f.prima_vigente, 0);
+  const gTot    = filas.reduce((a,f) => a + f.gestiones_totales, 0);
+  const gEf     = filas.reduce((a,f) => a + f.gestiones_totales * f.tasa_efectividad / 100, 0);
+  return { polizas, prima, tasa: 100 * gEf / gTot };   // tasa ponderada por nº de gestiones
+}
+
+function top10PorPrima(filas){
+  return [...filas].sort((a,b) => b.prima_vigente - a.prima_vigente).slice(0,10);
+}
+
+function primaPorRegional(filas){
+  const mapa = {};
+  filas.forEach(f => { mapa[f.regional] = (mapa[f.regional] || 0) + f.prima_vigente; });
+  return Object.entries(mapa).sort((a,b) => b[1] - a[1]);
+}
+
+/* ============ 3. RENDER VISUAL ============ */
+const kpis = calcularKPIs(DATOS);
+document.getElementById('kpiPolizas').textContent = kpis.polizas.toLocaleString('es-CO');
+document.getElementById('kpiPrima').textContent   = fmtPesos(kpis.prima);
+document.getElementById('kpiTasa').textContent    = fmtPct(kpis.tasa);
+
+const cuerpo = document.getElementById('cuerpoTabla');
+top10PorPrima(DATOS).forEach((f,i) => {
+  const clase = f.tasa_efectividad >= kpis.tasa ? 'bien' : (f.tasa_efectividad < 40 ? 'alerta' : 'neutro');
+  cuerpo.insertAdjacentHTML('beforeend',
+    `<tr><td>${i+1}</td><td>${f.asesor}</td><td>${f.regional}</td>` +
+    `<td class="num">${f.polizas_vigentes}</td>` +
+    `<td class="num">${fmtPesos(f.prima_vigente)}</td>` +
+    `<td class="num"><span class="pill ${clase}">${fmtPct(f.tasa_efectividad)}</span></td></tr>`);
+});
+
+const porRegional = primaPorRegional(DATOS);
+new Chart(document.getElementById('graficoRegional'), {
+  type: 'bar',
+  data: {
+    labels: porRegional.map(d => d[0]),
+    datasets: [{ label: 'Prima mensual vigente', data: porRegional.map(d => d[1]), backgroundColor: '#1f3a5f', borderRadius: 6 }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: c => fmtPesos(c.parsed.y) } }
+    },
+    scales: { y: { ticks: { callback: v => '$' + (v/1e6).toFixed(0) + ' M' } } }
+  }
+});
+</script>
+</body>
+</html>
